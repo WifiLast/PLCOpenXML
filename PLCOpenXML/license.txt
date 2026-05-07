@@ -1,0 +1,15 @@
+Additional Term – Non-Commercial Use Only
+
+Notwithstanding any provision of the GNU Affero General Public License v3,
+permission to use, modify, and distribute this software is granted only for
+non-commercial purposes.
+
+“Commercial purposes” means any use intended for or directed toward
+commercial advantage or monetary compensation, including but not limited to:
+- selling the software
+- using the software in paid services
+- integrating the software into commercial products
+
+Any commercial use requires explicit written permission from the copyright holder.
+
+All other terms and conditions of the GNU Affero General Public License v3 apply.

@@ -4,7 +4,7 @@ Example usage of the plcopen package for extracting and inserting ST code.
 """
 
 from pathlib import Path
-from plcopen import ProjectExtractor, ProjectInserter
+from plcopener import ProjectExtractor, ProjectInserter
 
 def main():
     # 1. Setup paths

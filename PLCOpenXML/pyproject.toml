@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plcopener"
+version = "0.1.0"
+description = "Tools for extracting and inserting Structured Text in PLCOpen XML files"
+readme = "README.md"
+license = { file = "license.txt" }
+requires-python = ">=3.7"
+authors = [
+    { name = "Martin Stark" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.scripts]
+plcopen-extract = "plcopener.cli:extract_main"
+plcopen-insert = "plcopener.cli:insert_main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["plcopener*"]

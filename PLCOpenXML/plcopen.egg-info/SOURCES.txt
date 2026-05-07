@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+plcopen/__init__.py
+plcopen/cli.py
+plcopen/extractor.py
+plcopen/inserter.py
+plcopen/models.py
+plcopen/st_parser.py
+plcopen/xml_utils.py
+plcopen.egg-info/PKG-INFO
+plcopen.egg-info/SOURCES.txt
+plcopen.egg-info/dependency_links.txt
+plcopen.egg-info/entry_points.txt
+plcopen.egg-info/top_level.txt
