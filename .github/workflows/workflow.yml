@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install .
+          pip install ./PLCOpenXML
       - name: Test CLI
         run: |
           plcopen-extract --help
@@ -43,7 +43,7 @@ jobs:
           pip install build
           
       - name: Build sdist and wheel
-        run: python -m build
+        run: python -m build ./PLCOpenXML
         
       - name: Publish to PyPI
         if: github.event_name == 'release' && github.event.action == 'published'
