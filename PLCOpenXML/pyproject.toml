@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "license.txt" }
 requires-python = ">=3.7"
 authors = [
-    { name = "Martin Stark" },
+    { name = "Martin St." },
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
