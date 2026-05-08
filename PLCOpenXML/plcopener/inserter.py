@@ -13,11 +13,13 @@ from .xml_utils import (
     NS,
     NS_XHTML,
     find_child,
+    get_all_resources,
     get_object_id,
     get_project_structure,
     iter_children,
     local_name,
     p,
+    parse_xml_resilient,
     remove_children,
     sanitize,
     set_text_child,
@@ -651,7 +653,23 @@ def mapping_text(name: str) -> str:
 
 def build_object_path_map(root: ET.Element) -> dict[str, str]:
     project_structure = get_project_structure(root)
+    result: dict[str, str] = {}
+    
     if project_structure is None:
+        # Fallback for projects with multiple resources but no ProjectStructure
+        resources = get_all_resources(root)
+        if len(resources) > 1:
+            for resource in resources:
+                res_name = sanitize(resource.get("name", "unknown"))
+                for pou in resource.findall(f".//{p('pou')}"):
+                    obj_id = get_object_id(pou)
+                    if obj_id:
+                        result[obj_id] = f"{res_name}/{sanitize(pou.get('name', 'unknown'))}.st"
+                for gv in resource.findall(f".//{p('globalVars')}"):
+                    obj_id = get_object_id(gv)
+                    if obj_id:
+                        result[obj_id] = f"{res_name}/{sanitize(gv.get('name', 'unknown'))}.st"
+            return result
         return {}
 
     result: dict[str, str] = {}
@@ -1118,7 +1136,7 @@ class ProjectInserter:
     def __init__(self, xml_path: Path):
         self.xml_path = xml_path
         self.original_bytes = xml_path.read_bytes()
-        self.root = ET.fromstring(self.original_bytes.decode("utf-8-sig"))
+        self.root = parse_xml_resilient(xml_path)
 
     def insert(
         self,

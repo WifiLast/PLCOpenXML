@@ -8,12 +8,14 @@ from .xml_utils import (
     ADDDATA_UNION,
     NS_XHTML,
     find_child,
+    get_all_resources,
     get_element_text,
     get_object_id,
     get_project_structure,
     iter_children,
     local_name,
     p,
+    parse_xml_resilient,
     sanitize,
 )
 
@@ -36,7 +38,7 @@ POU_KEYWORDS = {
 
 
 def parse_xml(xml_path: Path) -> ET.Element:
-    return ET.parse(xml_path).getroot()
+    return parse_xml_resilient(xml_path)
 
 
 def normalize_inline_text(value: str) -> str:
@@ -620,61 +622,56 @@ def render_pou_source(pou: ET.Element) -> str | None:
 
 def build_id_map(root: ET.Element) -> dict[str, dict[str, object]]:
     """
-    Build {ObjectId -> {'name': str, 'pou_type': str, 'element': ET.Element}}.
+    Build {ObjectId -> {'name': str, 'pou_type': str, 'element': ET.Element, 'resource': str | None}}.
     Covers both POUs and dataTypes.
     """
     id_map: dict[str, dict[str, object]] = {}
 
-    for pou in root.findall(f".//{p('pou')}"):
-        obj_id = get_object_id(pou)
+    def add_to_map(elem: ET.Element, pou_type: str, resource_name: str | None = None) -> None:
+        obj_id = get_object_id(elem)
         if obj_id:
             id_map[obj_id] = {
-                "name": pou.get("name", "unknown"),
-                "pou_type": pou.get("pouType", "pou"),
-                "element": pou,
+                "name": elem.get("name", "unknown"),
+                "pou_type": pou_type,
+                "element": elem,
+                "resource": resource_name,
             }
+
+    # First, find POUs/types inside resources (applications)
+    for resource in get_all_resources(root):
+        res_name = resource.get("name")
+        for pou in resource.findall(f".//{p('pou')}"):
+            add_to_map(pou, pou.get("pouType", "pou"), res_name)
+        for gv in resource.findall(f".//{p('globalVars')}"):
+            add_to_map(gv, "globalVars", res_name)
+
+    # Then, find everything else (global types/POUs)
+    for pou in root.findall(f".//{p('pou')}"):
+        obj_id = get_object_id(pou)
+        if obj_id and obj_id not in id_map:
+            add_to_map(pou, pou.get("pouType", "pou"))
 
     for dt in root.findall(f".//{p('dataType')}"):
         obj_id = get_object_id(dt)
-        if obj_id:
-            id_map[obj_id] = {
-                "name": dt.get("name", "unknown"),
-                "pou_type": "dataType",
-                "element": dt,
-            }
-
+        if obj_id and obj_id not in id_map:
+            add_to_map(dt, "dataType")
+            
+    # Check for unions in project addData
     project_add_data = find_child(root, "addData")
-    for data in iter_children(project_add_data, "data"):
-        if data.get("name") != ADDDATA_UNION:
-            continue
-        union = find_child(data, "union")
-        if union is None:
-            continue
-        obj_id = get_object_id(union)
-        if obj_id:
-            id_map[obj_id] = {
-                "name": union.get("name", "unknown"),
-                "pou_type": "union",
-                "element": union,
-            }
+    if project_add_data is not None:
+        for data in iter_children(project_add_data, "data"):
+            if data.get("name") == ADDDATA_UNION:
+                union = find_child(data, "union")
+                if union is not None:
+                    add_to_map(union, "union")
 
     for configuration in root.findall(f".//{p('configuration')}"):
-        obj_id = get_object_id(configuration)
-        if obj_id:
-            id_map[obj_id] = {
-                "name": configuration.get("name", "unknown"),
-                "pou_type": "configuration",
-                "element": configuration,
-            }
+        add_to_map(configuration, "configuration")
 
     for global_vars in root.findall(f".//{p('globalVars')}"):
         obj_id = get_object_id(global_vars)
-        if obj_id:
-            id_map[obj_id] = {
-                "name": global_vars.get("name", "unknown"),
-                "pou_type": "globalVars",
-                "element": global_vars,
-            }
+        if obj_id and obj_id not in id_map:
+            add_to_map(global_vars, "globalVars")
 
     return id_map
 
@@ -784,5 +781,16 @@ class ProjectExtractor:
                 for child in project_structure:
                     self.process_structure_node(child, out_root)
             else:
-                print("No ProjectStructure found, falling back to flat export.")
-                self.flat_export(out_root)
+                resources = get_all_resources(self.root)
+                if len(resources) > 1:
+                    print(f"No ProjectStructure found, but {len(resources)} resources detected.")
+                    print("Grouping ST files by resource ...")
+                    for info in self.id_map.values():
+                        res_name = info.get("resource")
+                        if res_name:
+                            self.write_st_file(info, out_root / sanitize(str(res_name)))
+                        else:
+                            self.write_st_file(info, out_root / "Global")
+                else:
+                    print("No ProjectStructure found, falling back to flat export.")
+                    self.flat_export(out_root)

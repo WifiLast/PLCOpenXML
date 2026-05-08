@@ -1,5 +1,7 @@
 import xml.etree.ElementTree as ET
+import re
 from typing import List, Optional
+from pathlib import Path
 
 NS = "http://www.plcopen.org/xml/tc6_0200"
 NS_XHTML = "http://www.w3.org/1999/xhtml"
@@ -9,6 +11,43 @@ ADDDATA_UNION = "http://www.3s-software.com/plcopenxml/union"
 
 def p(tag: str) -> str:
     return f"{{{NS}}}{tag}"
+
+def parse_xml_resilient(xml_path: Path) -> ET.Element:
+    """Attempt to parse XML, fixing truncation errors by closing open tags."""
+    try:
+        return ET.parse(xml_path).getroot()
+    except ET.ParseError as e:
+        # If it's a "no element found" or "mismatched tag" at the end, try to fix it
+        print(f"Warning: XML parse failed ({e}), attempting recovery...")
+        text = xml_path.read_text(encoding="utf-8")
+        
+        # Heuristic: Find all opening tags and see which ones are not closed
+        # This is a bit simplified but works for many cases
+        tags = re.findall(r'<([a-zA-Z0-9:]+)(?:\s+[^>]*[^/])?>', text)
+        closing_tags = re.findall(r'</([a-zA-Z0-9:]+)>', text)
+        
+        # We only care about the sequence of open tags
+        open_stack = []
+        for t in re.finditer(r'<([a-zA-Z0-9:]+)(?:\s+[^>]*[^/])?>|</([a-zA-Z0-9:]+)>', text):
+            if t.group(1): # Opening
+                open_stack.append(t.group(1))
+            else: # Closing
+                if open_stack and open_stack[-1] == t.group(2):
+                    open_stack.pop()
+        
+        fixed_text = text.rstrip()
+        # Remove any partial tag at the very end
+        if fixed_text.endswith('<') or (fixed_text.rfind('<') > fixed_text.rfind('>')):
+            fixed_text = fixed_text[:fixed_text.rfind('<')]
+            
+        for tag in reversed(open_stack):
+            fixed_text += f"</{tag}>"
+            
+        try:
+            return ET.fromstring(fixed_text)
+        except ET.ParseError as e2:
+            print(f"Recovery failed: {e2}")
+            raise e
 
 def xhtml_tag(tag: str) -> str:
     return f"{{{NS_XHTML}}}{tag}"
@@ -75,3 +114,7 @@ def get_project_structure(root: ET.Element) -> Optional[ET.Element]:
             continue
         return find_child(data, "ProjectStructure")
     return None
+
+def get_all_resources(root: ET.Element) -> List[ET.Element]:
+    """Find all resource elements in the project."""
+    return root.findall(f".//{p('resource')}")
