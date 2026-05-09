@@ -4,22 +4,26 @@ on:
   push:
     branches: [ master, main ]
   release:
-    types: [published]
+    types: [ published ]
   workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install ./PLCOpenXML
+
       - name: Test CLI
         run: |
           plcopen-extract --help
@@ -29,24 +33,27 @@ jobs:
     name: Build and publish Python distribution
     needs: test
     runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-          
+
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
           pip install build
-          
+
       - name: Build sdist and wheel
         run: python -m build ./PLCOpenXML
-        
+
       - name: Publish to PyPI
         if: github.event_name == 'release' && github.event.action == 'published'
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
