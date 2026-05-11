@@ -1,43 +1,53 @@
 # PLCOpener Tools
 
-A Python package for extracting and inserting Structured Text (ST) code in PLCOpen XML files (CODESYS).
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](license.txt)
+
+**PLCOpener** is a professional Python package for extracting and inserting Structured Text (ST) code in PLCOpen XML files (compatible with CODESYS, TwinCAT, etc.).
+
+It allows developers to bridge the gap between monolithic XML exports and modern software engineering practices like Git version control, external code analysis, and automated refactoring.
+
+## Features
+
+- **Folder Reconstruction**: Rebuilds the project tree structure on your filesystem.
+- **Resource Management**: Automatically detects and groups files by PLC applications/resources.
+- **Resilient Parsing**: Robust handling of malformed or incomplete XML project files.
+- **CLI & Library**: Full support for both command-line automation and programmatic use.
 
 ## Installation
-
-You can install the package locally using pip:
 
 ```bash
 pip install .
 ```
 
-## Usage
+## Quick Start
 
-After installation, two command-line tools are available:
-
-### Extracting ST code
+### 1. Extracting ST code
 
 ```bash
-plcopen-extract project.xml -o output_dir
+plcopen-extract project.xml -o my_workspace
 ```
 
-### Inserting changes back
+### 2. Modifying and Re-inserting
+
+After editing the `.st` files in `my_workspace`, push the changes back:
 
 ```bash
-plcopen-insert project.xml --st-dir output_dir -o updated_project.xml
+plcopen-insert project.xml --st-dir my_workspace -o updated_project.xml
 ```
 
-## Programmatic Usage
+## Documentation
 
-You can also use the package in your own Python scripts:
+For a detailed project description and complete examples, please see [DESCRIPTION.md](DESCRIPTION.md).
+
+## Usage Example (Library)
 
 ```python
 from plcopener import ProjectExtractor, ProjectInserter
 
 # Extract
-extractor = ProjectExtractor("project.xml")
-extractor.extract("st_output")
+ProjectExtractor("project.xml").extract("st_output")
 
 # Insert
-inserter = ProjectInserter("project.xml")
-inserter.insert("st_output", output_path="updated.xml")
+ProjectInserter("project.xml").insert("st_output", output_path="updated.xml")
 ```

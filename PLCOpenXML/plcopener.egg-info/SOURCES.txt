@@ -1,3 +1,4 @@
+MANIFEST.in
 README.md
 license.txt
 pyproject.toml
@@ -13,4 +14,5 @@ plcopener.egg-info/PKG-INFO
 plcopener.egg-info/SOURCES.txt
 plcopener.egg-info/dependency_links.txt
 plcopener.egg-info/entry_points.txt
+plcopener.egg-info/not-zip-safe
 plcopener.egg-info/top_level.txt
