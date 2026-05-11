@@ -55,5 +55,5 @@ jobs:
         run: python -m build .
 
       - name: Publish to PyPI
-        if: github.event_name == 'release' && github.event.action == 'published'
+        if: (github.event_name == 'release' && github.event.action == 'published') || github.event_name == 'workflow_dispatch'
         uses: pypa/gh-action-pypi-publish@release/v1
