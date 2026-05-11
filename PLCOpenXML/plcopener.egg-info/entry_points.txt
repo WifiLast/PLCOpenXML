@@ -1,0 +1,3 @@
+[console_scripts]
+plcopen-extract = plcopener.cli:extract_main
+plcopen-insert = plcopener.cli:insert_main
