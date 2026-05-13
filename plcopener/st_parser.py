@@ -8,6 +8,8 @@ KEYWORD_TO_POUTYPE = {
     "FUNCTION_BLOCK": "functionBlock",
     "FUNCTION": "function",
     "PROGRAM": "program",
+    "ACTION": "action",
+    "METHOD": "method",
 }
 
 SECTION_NAMES = {
@@ -179,7 +181,7 @@ def parse_pou_st_file(path: Path) -> Optional[PouUpdate]:
     else:
         # Match POU header, e.g. "FUNCTION_BLOCK my_block"
         header_re = re.match(
-            r"(?i)^(FUNCTION_BLOCK|FUNCTION|PROGRAM)\s+([A-Za-z0-9_]+)"
+            r"(?i)^(FUNCTION_BLOCK|FUNCTION|PROGRAM|ACTION|METHOD)\s+([A-Za-z0-9_]+)"
             r"(?:\s+EXTENDS\s+([A-Za-z0-9_.]+))?"
             r"(?:\s+IMPLEMENTS\s+([^:]+?))?"
             r"(?:\s*:\s*(.+))?"
@@ -212,7 +214,7 @@ def parse_pou_st_file(path: Path) -> Optional[PouUpdate]:
     )
     
     # To correctly extract the declaration part versus the execution part in POUs:
-    # Everything after the final END_VAR is the body (unless it's globalVars which has no body)
+    # Everything after the final END_VAR is the body
     last_end_var = -1
     for m in re.finditer(r"(?i)\bEND_VAR\b", text):
         last_end_var = m.end()
@@ -221,21 +223,28 @@ def parse_pou_st_file(path: Path) -> Optional[PouUpdate]:
         declaration_text = text
         body = ""
     else:
+        # Calculate where the content starts (after the first line / header)
+        header_end = text.find("\n") + 1
+        if header_end == 0: # Only one line
+            header_end = len(text)
+            
         if last_end_var != -1:
             declaration_text = text[:last_end_var]
             body_text = text[last_end_var:]
-            # Remove leading whitespace but preserve code indentation
-            body = body_text.lstrip("\r\n \t")
-            # Strip trailing END_FUNCTION_BLOCK / END_PROGRAM / END_FUNCTION
-            body = re.sub(
-                r"\s*\b(END_FUNCTION_BLOCK|END_PROGRAM|END_FUNCTION)\b\s*$",
-                "",
-                body,
-                flags=re.IGNORECASE,
-            ).rstrip("\r\n")
         else:
-            declaration_text = text
-            body = ""
+            # If no END_VAR, everything after the header is body
+            declaration_text = text[:header_end]
+            body_text = text[header_end:]
+            
+        # Clean up body
+        body = body_text.lstrip("\r\n \t")
+        # Strip trailing END_FUNCTION_BLOCK / END_PROGRAM / END_FUNCTION / END_ACTION / END_METHOD
+        body = re.sub(
+            r"\s*\b(END_FUNCTION_BLOCK|END_PROGRAM|END_FUNCTION|END_ACTION|END_METHOD)\b\s*$",
+            "",
+            body,
+            flags=re.IGNORECASE,
+        ).rstrip("\r\n")
 
     for match in var_block_re.finditer(declaration_text):
         section_type = match.group(1).upper()

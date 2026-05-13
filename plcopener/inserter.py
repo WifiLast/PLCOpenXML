@@ -13,13 +13,11 @@ from .xml_utils import (
     NS,
     NS_XHTML,
     find_child,
-    get_all_resources,
     get_object_id,
     get_project_structure,
     iter_children,
     local_name,
     p,
-    parse_xml_resilient,
     remove_children,
     sanitize,
     set_text_child,
@@ -408,6 +406,46 @@ def add_pou_inheritance(interface: ET.Element, update: PouUpdate) -> None:
         ET.SubElement(inheritance, p("Implements")).text = item
 
 
+def update_action_element(action: ET.Element, update: PouUpdate) -> bool:
+    body = find_child(action, "body")
+    if body is None:
+        body = ET.SubElement(action, p("body"))
+    remove_children(body)
+    st = ET.SubElement(body, p("ST"))
+    xhtml = ET.SubElement(st, xhtml_tag("xhtml"))
+    xhtml.text = "\n" + update.body + ("\n" if update.body else "")
+    return True
+
+
+def update_method_element(method: ET.Element, update: PouUpdate) -> bool:
+    interface = find_child(method, "interface")
+    if interface is None:
+        interface = ET.SubElement(method, p("interface"))
+    remove_children(interface)
+
+    if update.return_type:
+        return_type = ET.SubElement(interface, p("returnType"))
+        build_type_node(return_type, update.return_type)
+
+    for section in update.sections:
+        xml_name = SECTION_TO_XML.get(section.kind)
+        if xml_name is None or not section.variables:
+            continue
+        section_elem = ET.SubElement(interface, p(xml_name))
+        apply_section_attributes(section_elem, section)
+        for variable in section.variables:
+            add_pou_variable(section_elem, variable)
+
+    body = find_child(method, "body")
+    if body is None:
+        body = ET.SubElement(method, p("body"))
+    remove_children(body)
+    st = ET.SubElement(body, p("ST"))
+    xhtml = ET.SubElement(st, xhtml_tag("xhtml"))
+    xhtml.text = "\n" + update.body + ("\n" if update.body else "")
+    return True
+
+
 def update_pou_element(pou: ET.Element, update: PouUpdate) -> bool:
     if pou.get("pouType", "") != update.pou_type:
         return False
@@ -619,6 +657,9 @@ def create_missing_pou_objects(
 
         if name in existing_pous:
             continue
+        # Skip Actions and Methods - they should be children of other POUs
+        if update.pou_type in {"action", "method"}:
+            continue
         print(f"Creating missing POU: {name}")
         pous_container.append(create_pou_element(update))
         existing_pous.add(name)
@@ -653,23 +694,7 @@ def mapping_text(name: str) -> str:
 
 def build_object_path_map(root: ET.Element) -> dict[str, str]:
     project_structure = get_project_structure(root)
-    result: dict[str, str] = {}
-    
     if project_structure is None:
-        # Fallback for projects with multiple resources but no ProjectStructure
-        resources = get_all_resources(root)
-        if len(resources) > 1:
-            for resource in resources:
-                res_name = sanitize(resource.get("name", "unknown"))
-                for pou in resource.findall(f".//{p('pou')}"):
-                    obj_id = get_object_id(pou)
-                    if obj_id:
-                        result[obj_id] = f"{res_name}/{sanitize(pou.get('name', 'unknown'))}.st"
-                for gv in resource.findall(f".//{p('globalVars')}"):
-                    obj_id = get_object_id(gv)
-                    if obj_id:
-                        result[obj_id] = f"{res_name}/{sanitize(gv.get('name', 'unknown'))}.st"
-            return result
         return {}
 
     result: dict[str, str] = {}
@@ -1068,17 +1093,46 @@ def update_pous(
     for pou in root.findall(f".//{p('pou')}"):
         update = None
         obj_id = get_object_id(pou)
+        pou_relpath = None
         if obj_id:
-            relpath = object_path_map.get(obj_id)
-            if relpath:
-                update = pou_updates_by_path.get(relpath)
+            pou_relpath = object_path_map.get(obj_id)
+            if pou_relpath:
+                update = pou_updates_by_path.get(pou_relpath)
         if update is None:
             name = pou.get("name", "")
             update = pou_updates_by_name.get(name)
-        if update is None:
-            continue
-        if update_pou_element(pou, update):
-            updated_count += 1
+        if update is not None:
+            if update_pou_element(pou, update):
+                updated_count += 1
+
+        # Handle nested Actions and Methods
+        pou_name = pou.get("name", "")
+        # Fallback to name-based directory if relpath is missing
+        if pou_relpath:
+            pou_dir = pou_relpath[:-3] # Remove ".st"
+        else:
+            pou_dir = pou_name
+
+        # Actions
+        actions_container = find_child(pou, "actions")
+        for action in iter_children(actions_container, "action"):
+            action_name = action.get("name")
+            # Try both relative path and name-only path for action
+            action_relpath = f"{pou_dir}/{action_name}.st"
+            action_update = pou_updates_by_path.get(action_relpath) or pou_updates_by_name.get(action_name)
+            
+            if action_update and update_action_element(action, action_update):
+                updated_count += 1
+            
+        # Methods
+        methods_container = find_child(pou, "methods")
+        for method in iter_children(methods_container, "method"):
+            method_name = method.get("name")
+            method_relpath = f"{pou_dir}/{method_name}.st"
+            method_update = pou_updates_by_path.get(method_relpath) or pou_updates_by_name.get(method_name)
+            
+            if method_update and update_method_element(method, method_update):
+                updated_count += 1
 
     for global_vars in root.findall(f".//{p('globalVars')}"):
         update = None
@@ -1136,7 +1190,7 @@ class ProjectInserter:
     def __init__(self, xml_path: Path):
         self.xml_path = xml_path
         self.original_bytes = xml_path.read_bytes()
-        self.root = parse_xml_resilient(xml_path)
+        self.root = ET.fromstring(self.original_bytes.decode("utf-8-sig"))
 
     def insert(
         self,
